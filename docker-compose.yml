@@ -1,0 +1,91 @@
+
+version: '3'
+networks:
+  musicbud:
+      driver: bridge
+
+services:
+    nginx:
+        image: nginx:stable-alpine
+        container_name: nginx
+        hostname: nginx
+        ports:
+            - "8080:80"
+            - "7474:7474"
+            - "7687:7687"
+            - "443:443"
+
+        restart: always
+        build:
+            context: ./nginx
+            dockerfile: Dockerfile
+            
+        volumes:
+            - ./app/:/var/www/html
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+            - ./nginx/ssl:/etc/nginx/conf.d/ssl
+
+        depends_on:
+            - neo4j
+    
+        networks:
+            - musicbud
+    nodejs:
+        image: node:latest
+        container_name: nodejs
+        hostname: nodejs
+
+        build:
+            context: ./app
+            dockerfile: Dockerfile
+
+        volumes:
+            - ./app:/var/www/html
+        command: npm start
+        
+        ports:
+
+            - '81:3000'
+
+
+        working_dir: /var/www/html
+
+        networks:
+            - musicbud
+
+
+    neo4j:
+        image : neo4j:latest
+        container_name: neo4j
+        hostname: neo4j
+        volumes:
+           
+            - ./neo4j/data:/data 
+            - ./neo4j/logs:/logs 
+            - ./neo4j/import:/var/lib/neo4j/import
+            
+
+        restart: on-failure
+        networks:
+            - musicbud        
+        environment:
+            NEO4J_CONF: ./neo4j/conf/neo4j.conf
+            NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+            NEO4J_AUTH: neo4j/adminadmin
+
+        healthcheck:
+            test: [CMD-SHELL, "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
+    redis:
+        image: 'redis:alpine'
+        container_name: redis
+        hostname: redis
+        restart: on-failure
+        networks:
+            - musicbud
+        
+        ports:
+        - '6379:6379'
+volumes:
+  nginx:
+  neo4j:
+  redis:
